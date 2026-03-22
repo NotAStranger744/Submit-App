@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submit a Joke</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; }
+        input[type="text"], textarea, select { width: 100%; padding: 8px; box-sizing: border-box; }
+        button { padding: 10px 15px; background-color: #2ecc71; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background-color: #27ae60; }
+        .message { margin-top: 15px; font-weight: bold; }
+        .error { color: red; }
+        .success { color: green; }
+        .or-divider { margin: 10px 0; font-style: italic; color: #7f8c8d; }
+    </style>
+</head>
+<body>
+
+    <h1>Submit a New Joke</h1>
+    
+    <div class="form-group">
+        <label for="setup">Setup:</label>
+        <textarea id="setup" rows="3" placeholder="Why did the chicken cross the road?"></textarea>
+    </div>
+
+    <div class="form-group">
+        <label for="punchline">Punchline:</label>
+        <textarea id="punchline" rows="2" placeholder="To get to the other side!"></textarea>
+    </div>
+
+    <div class="form-group">
+        <label for="existingType">Select an existing type:</label>
+        <select id="existingType">
+            <option value="">-- Select a type --</option>
+        </select>
+        
+        <div class="or-divider">- OR -</div>
+        
+        <label for="newType">Enter a new type:</label>
+        <input type="text" id="newType" placeholder="e.g., animal, knock-knock">
+    </div>
+
+    <button id="submitBtn">Submit Joke</button>
+    
+    <div id="statusMessage" class="message"></div>
+
+    <script>
+        const existingTypeDropdown = document.getElementById('existingType');
+        const newTypeInput = document.getElementById('newType');
+        const setupInput = document.getElementById('setup');
+        const punchlineInput = document.getElementById('punchline');
+        const submitBtn = document.getElementById('submitBtn');
+        const statusMessage = document.getElementById('statusMessage');
+
+        // Fetch types to populate the dropdown
+        async function loadJokeTypes() {
+            try {
+                const response = await fetch('/types');
+                if (!response.ok) return;
+                
+                const types = await response.json();
+                const currentValue = existingTypeDropdown.value;
+                
+                existingTypeDropdown.innerHTML = '<option value="">-- Select a type --</option>';
+                
+                types.forEach(type => {
+                    const option = document.createElement('option');
+                    option.value = type.name;
+                    option.textContent = type.name;
+                    existingTypeDropdown.appendChild(option);
+                });
+
+                if (currentValue) existingTypeDropdown.value = currentValue;
+            } catch (error) {
+                console.log("Backend not connected yet.");
+            }
+        }
+
+        // Update list when interacted with, as per requirements
+        existingTypeDropdown.addEventListener('focus', loadJokeTypes);
+        loadJokeTypes();
+
+        // Handle Form Submission
+        submitBtn.addEventListener('click', async () => {
+            const setup = setupInput.value.trim();
+            const punchline = punchlineInput.value.trim();
+            const existingType = existingTypeDropdown.value;
+            const newType = newTypeInput.value.trim();
+
+            // Validation: Prevent submission if required fields are empty
+            if (!setup || !punchline) {
+                showMessage("Setup and Punchline are required!", "error");
+                return;
+            }
+
+            if (!existingType && !newType) {
+                showMessage("You must select an existing type OR enter a new one.", "error");
+                return;
+            }
+
+            // Determine which type to use (new type overrides existing selection)
+            const finalType = newType ? newType : existingType;
+
+            try {
+                const response = await fetch('/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ setup, punchline, type: finalType })
+                });
+
+                if (response.ok) {
+                    showMessage("Joke submitted successfully!", "success");
+                    // Clear the form
+                    setupInput.value = '';
+                    punchlineInput.value = '';
+                    newTypeInput.value = '';
+                    existingTypeDropdown.value = '';
+                } else {
+                    showMessage("Failed to submit joke. Check the server.", "error");
+                }
+            } catch (error) {
+                showMessage("Error connecting to the server.", "error");
+            }
+        });
+
+        function showMessage(msg, type) {
+            statusMessage.textContent = msg;
+            statusMessage.className = `message ${type}`;
+        }
+    </script>
+</body>
+</html>

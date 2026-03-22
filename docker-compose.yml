@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  #mysql container
+  db:
+    image: mysql:8.0
+    container_name: joke_db_container
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: DistSystemsPassword
+      MYSQL_DATABASE: joke_db
+    ports:
+      - "3306:3306"
+    volumes:
+      #persistent volume
+      - db_data:/var/lib/mysql
+      #initialization script
+      - ./db-init/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - joke_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  #joke app container
+  joke-app:
+    build: ./joke-app
+    container_name: joke_app_container
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+    networks:
+      - joke_network
+
+  #submission app container
+  submit-app:
+    build: ./submit-app
+    container_name: submit_app_container
+    ports:
+      - "3001:3001"
+    depends_on:
+      - db
+    networks:
+      - joke_network
+
+#private network
+networks:
+  joke_network:
+    driver: bridge
+
+#persistent volume
+volumes:
+  db_data:
