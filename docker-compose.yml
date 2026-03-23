@@ -12,7 +12,7 @@ services:
       - "15672:15672"
     volumes:
       #persistent volume for the queue
-      - rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq_data:/var/lib/rabbitmq
     networks:
       - submit_network
 
@@ -38,5 +38,4 @@ networks:
     driver: bridge
 
 volumes:
-  rabbitmq_data:
   submit_cache:
