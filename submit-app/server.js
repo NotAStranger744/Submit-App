@@ -159,4 +159,5 @@ app.post('/submit', async (req, res) => {
 app.listen(port, () => {
     console.log(`Submit App listening at Port ${port}`);
     console.log(`Swagger Docs available at /docs`);
+    console.log(`Joke Service URL: ${JOKE_SERVICE_URL}`);
 });
