@@ -23,7 +23,7 @@ services:
     ports:
       - "3001:3001"
     environment:
-      - JOKE_SERVICE_URL=http://74.161.43.164:3000 #change if vm1 ip changes
+      - JOKE_SERVICE_URL=http://10.0.0.4:3000 #change if vm1 ip changes
       - RABBITMQ_URL=amqp://rabbitmq
     volumes:
       - submit_cache:/data/cache #persistent cache
