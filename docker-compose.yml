@@ -1,16 +1,40 @@
 version: '3.8'
 
 services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq_broker
+    restart: always
+    ports:
+      #5672 for ampq
+      - "5672:5672"
+      #15672 for rabbitmq UI
+      - "15672:15672"
+    volumes:
+      #persistent volume for the queue
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - submit_network
+
   #submission app container
   submit-app:
     build: ./submit-app
     container_name: submit_app_container
     ports:
       - "3001:3001"
+    environment:
+      - JOKE_SERVICE_URL=http://http://74.161.43.164:3000 #change if vm1 ip changes
+      - RABBITMQ_URL=amqp://rabbitmq
+    depends_on:
+      - rabbitmq
     networks:
-      - joke_network
+      - submit_network
 
 #private network
 networks:
-  joke_network:
+  submit_network:
     driver: bridge
+
+volumes:
+  rabbitmq_data:
+  submit_cache:

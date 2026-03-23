@@ -55,7 +55,7 @@
         const submitBtn = document.getElementById('submitBtn');
         const statusMessage = document.getElementById('statusMessage');
 
-        // Fetch types to populate the dropdown
+        //fetch types to populate the dropdown
         async function loadJokeTypes() {
             try {
                 const response = await fetch('/types');
@@ -75,22 +75,21 @@
 
                 if (currentValue) existingTypeDropdown.value = currentValue;
             } catch (error) {
-                console.log("Backend not connected yet.");
+                console.log("Server connection failed");
             }
         }
 
-        // Update list when interacted with, as per requirements
+        //update list
         existingTypeDropdown.addEventListener('focus', loadJokeTypes);
         loadJokeTypes();
 
-        // Handle Form Submission
+        //submit joke
         submitBtn.addEventListener('click', async () => {
             const setup = setupInput.value.trim();
             const punchline = punchlineInput.value.trim();
             const existingType = existingTypeDropdown.value;
             const newType = newTypeInput.value.trim();
 
-            // Validation: Prevent submission if required fields are empty
             if (!setup || !punchline) {
                 showMessage("Setup and Punchline are required!", "error");
                 return;
@@ -101,7 +100,7 @@
                 return;
             }
 
-            // Determine which type to use (new type overrides existing selection)
+            //new or existing type
             const finalType = newType ? newType : existingType;
 
             try {
@@ -113,7 +112,7 @@
 
                 if (response.ok) {
                     showMessage("Joke submitted successfully!", "success");
-                    // Clear the form
+                    //clear
                     setupInput.value = '';
                     punchlineInput.value = '';
                     newTypeInput.value = '';

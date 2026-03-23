@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
-const mysql = require('mysql2/promise');
+const amqp = require('amqplib');
+const fs = require('fs/promises');
+const path = require('path');
 const swaggerUi = require('swagger-ui-express');
 
 
@@ -12,16 +14,30 @@ app.use(express.static('public'));
 app.use(express.json());
 
 
-//connect to sql database
-const pool = mysql.createPool({
-    host: 'db',
-    user: 'root',
-    password: 'DistSystemsPassword', //password for mysql will need altering to run a db on a different machine
-    database: 'joke_db',
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
-});
+//env variables for vm communication
+const JOKE_SERVICE_URL = process.env.JOKE_SERVICE_URL || 'http://localhost:3000';
+const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://rabbitmq'; 
+const QUEUE_NAME = 'joke_queue';
+
+//the cache file for resilience
+const CACHE_FILE = path.join(__dirname, 'cache', 'types_cache.json');
+
+//rabbit mq setup for async communication with the joke service
+let rabbitChannel = null;
+
+async function connectRabbitMQ() {
+    try {
+        const connection = await amqp.connect(RABBITMQ_URL);
+        rabbitChannel = await connection.createChannel();
+        //Ensure queue is durable (survives restarts)
+        await rabbitChannel.assertQueue(QUEUE_NAME, { durable: true });
+        console.log("Connected to RabbitMQ.");
+    } catch (error) {
+        console.error("Failed to connect to RabbitMQ, retrying...", error);
+        setTimeout(connectRabbitMQ, 5000);
+    }
+}
+connectRabbitMQ();
 
 
 //swagger setup
@@ -81,18 +97,38 @@ const swaggerDocument = {
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 
-//find joke categories from db
+//find joke categories from joke service, cache it, or fallback to cache
 app.get('/types', async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT name FROM types');
-        res.json(rows);
+        //attempt to fetch from vm 1
+        const response = await fetch(`${JOKE_SERVICE_URL}/types`);
+        
+        if (!response.ok) throw new Error("Failed to fetch from Joke Service");
+        
+        const types = await response.json();
+
+        //cache the result to file
+        await fs.mkdir(path.dirname(CACHE_FILE), { recursive: true });
+        await fs.writeFile(CACHE_FILE, JSON.stringify(types));
+
+        //return the updated data
+        res.json(types);
+
     } catch (error) {
-        console.error("Error fetching types:", error);
-        res.status(500).json({ error: 'Database connection failed' });
+        console.warn("Joke service unreachable. Falling back to cache...", error.message);
+        
+        try {
+            //read from the cached file as last resort
+            const cachedData = await fs.readFile(CACHE_FILE, 'utf-8');
+            res.json(JSON.parse(cachedData));
+        } catch (cacheError) {
+            console.error("Cache read failed:", cacheError);
+            res.status(503).json({ error: 'Service unavailable and no cache found.' });
+        }
     }
 });
 
-//post joke to db
+//post joke to rabbit mq
 app.post('/submit', async (req, res) => {
     const { setup, punchline, type } = req.body;
 
@@ -101,34 +137,26 @@ app.post('/submit', async (req, res) => {
         return res.status(400).json({ error: 'Setup, punchline, and type are required' });
     }
 
+    if (!rabbitChannel) {
+        return res.status(503).json({ error: 'RabbitMQ is currently unavailable' });
+    }
+
     try {
-        //add the type if it doesnt exist already 
-        await pool.query('INSERT IGNORE INTO types (name) VALUES (?)', [type]); //makes sure duplicate types arent added
-
-        //fetch the ID of the (new) type
-        const [typeRows] = await pool.query('SELECT id FROM types WHERE name = ?', [type]);
+        const jokePayload = JSON.stringify({ setup, punchline, type });
         
-        if (typeRows.length === 0) {
-            return res.status(500).json({ error: 'Failed to retrieve type ID' });
-        }
-        
-        const typeId = typeRows[0].id;
+        //push to queue
+        rabbitChannel.sendToQueue(QUEUE_NAME, Buffer.from(jokePayload), {
+            persistent: true 
+        });
 
-        //insert the new joke with the type id
-        await pool.query(
-            'INSERT INTO jokes (type_id, setup, punchline) VALUES (?, ?, ?)',
-            [typeId, setup, punchline]
-        );
-
-        res.status(201).json({ message: 'Joke submitted successfully!' });
-
-    } catch (error) { //error handling
-        console.error("Error submitting joke:", error);
-        res.status(500).json({ error: 'Failed to save joke to database' });
+        res.status(202).json({ message: 'Joke accepted and queued' });
+    } catch (error) {
+        console.error("Failed to queue joke:", error);
+        res.status(500).json({ error: 'Failed to process submission' });
     }
 });
 
 app.listen(port, () => {
-    console.log(`Submit App listening at http://localhost:${port}`);
-    console.log(`Swagger Docs available at http://localhost:${port}/docs`);
+    console.log(`Submit App listening at Port ${port}`);
+    console.log(`Swagger Docs available at /docs`);
 });
