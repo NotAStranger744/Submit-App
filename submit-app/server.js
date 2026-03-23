@@ -20,7 +20,7 @@ const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://rabbitmq';
 const QUEUE_NAME = 'joke_queue';
 
 //the cache file for resilience
-const CACHE_FILE = path.join(__dirname, 'cache', 'types_cache.json');
+const CACHE_FILE = '/data/cache/types_cache.json';
 
 //rabbit mq setup for async communication with the joke service
 let rabbitChannel = null;
