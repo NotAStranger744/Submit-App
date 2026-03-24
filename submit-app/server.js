@@ -10,9 +10,12 @@ const app = express();
 const port = 3001;
 
 app.use(cors());
-app.use(express.static('public')); 
 app.use(express.json());
 
+app.use('/submit', express.static('public'));
+app.get('/submit', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 //env variables for vm communication
 const JOKE_SERVICE_URL = process.env.JOKE_SERVICE_URL || 'http://localhost:3000';
@@ -94,8 +97,7 @@ const swaggerDocument = {
 };
 
 
-app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-
+app.use('/submit/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 //find joke categories from joke service, cache it, or fallback to cache
 app.get('/types', async (req, res) => {
