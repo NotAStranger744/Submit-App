@@ -4,6 +4,7 @@ services:
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: rabbitmq_broker
+    hostname: rabbitmq-node
     restart: always
     ports:
       #5672 for ampq
